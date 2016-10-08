@@ -5,6 +5,18 @@ from collections import Counter
 wordlist = Counter()
 
 
+@route('/test/1/<filename:path>')
+def test_1(filename):
+    # Apparently need to be careful with ./* working directory
+    return static_file(filename, root='./htmlcase1/')
+
+
+@route('/test/2/<filename:path>')
+def test_2(filename):
+    # Apparently need to be careful with ./* working directory
+    return static_file(filename, root='./htmlcase2/')
+
+
 @route('/static/<filename:path>')
 def send_static(filename):
     # Apparently need to be careful with ./* working directory
