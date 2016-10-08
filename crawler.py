@@ -1,16 +1,16 @@
 
 # Copyright (C) 2011 by Peter Goodman
-#
+# 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-#
+# 
 # The above copyright notice and this permission notice shall be included in
 # all copies or substantial portions of the Software.
-#
+# 
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -46,8 +46,11 @@ class crawler(object):
         """Initialize the crawler with a connection to the database to populate
         and with the file containing the list of seed URLs to begin indexing."""
         self._url_queue = [ ]
-        self._doc_id_cache = { }
-        self._word_id_cache = { }
+        self._id_to_url = { }
+        self._id_to_word = { }
+        self._word_id_to_doc_ids = { }
+        self._word_to_id = { }
+        self._doc_to_id = { }
 
         # functions to call when entering and exiting specific tags
         self._enter = defaultdict(lambda *a, **ka: self._visit_ignore)
@@ -88,8 +91,8 @@ class crawler(object):
 
         # never go in and parse these tags
         self._ignored_tags = set([
-            'meta', 'script', 'link', 'meta', 'embed', 'iframe', 'frame',
-            'noscript', 'object', 'svg', 'canvas', 'applet', 'frameset',
+            'meta', 'script', 'link', 'meta', 'embed', 'iframe', 'frame', 
+            'noscript', 'object', 'svg', 'canvas', 'applet', 'frameset', 
             'textarea', 'style', 'area', 'map', 'base', 'basefont', 'param',
         ])
 
@@ -119,6 +122,24 @@ class crawler(object):
                     self._url_queue.append((self._fix_url(line.strip(), ""), 0))
         except IOError:
             pass
+    
+    def get_inverted_index(self):
+        """Returns inverted index mapping (from word id to document ids that contain 
+        the word)"""
+        return self._word_id_to_doc_ids
+
+    def get_resolved_inverted_index(self):
+        """Returns inverted index mapping, with ids replaced with words and urls"""
+        r_inv_index = {}
+        for word_id, doc_id_set in self._word_id_to_doc_ids.iteritems():
+            word = self._id_to_word[word_id]
+            doc_list = []
+            for doc_id in doc_id_set:
+                doc_list.append(self._id_to_url[doc_id])
+
+            r_inv_index[word] = set(doc_list)
+
+        return r_inv_index
 
     # TODO remove me in real version
     def _mock_insert_document(self, url):
@@ -127,42 +148,44 @@ class crawler(object):
         ret_id = self._mock_next_doc_id
         self._mock_next_doc_id += 1
         return ret_id
-
+    
     # TODO remove me in real version
     def _mock_insert_word(self, word):
-        """A function that pretends to inster a word into the lexicon db table
+        """A function that pretends to instert a word into the lexicon db table
         and then returns that newly inserted word's id."""
         ret_id = self._mock_next_word_id
         self._mock_next_word_id += 1
         return ret_id
-
+    
     def word_id(self, word):
         """Get the word id of some specific word."""
-        if word in self._word_id_cache:
-            return self._word_id_cache[word]
-
+        if word in self._word_to_id:
+            return self._word_to_id[word]
+        
         # TODO: 1) add the word to the lexicon, if that fails, then the
         #          word is in the lexicon
-        #       2) query the lexicon for the id assigned to this word,
+        #       2) query the lexicon for the id assigned to this word, 
         #          store it in the word id cache, and return the id.
 
         word_id = self._mock_insert_word(word)
-        self._word_id_cache[word] = word_id
+        self._word_to_id[word] = word_id
+        self._id_to_word[word_id] = word
         return word_id
-
+    
     def document_id(self, url):
         """Get the document id for some url."""
-        if url in self._doc_id_cache:
-            return self._doc_id_cache[url]
-
+        if url in self._doc_to_id:
+            return self._doc_to_id[url]
+        
         # TODO: just like word id cache, but for documents. if the document
         #       doesn't exist in the db then only insert the url and leave
         #       the rest to their defaults.
-
+        
         doc_id = self._mock_insert_document(url)
-        self._doc_id_cache[url] = doc_id
+        self._doc_to_id[url] = doc_id
+        self._id_to_url[doc_id] = url
         return doc_id
-
+    
     def _fix_url(self, curr_url, rel):
         """Given a url and either something relative to that url or another url,
         get a properly parsed url."""
@@ -170,8 +193,8 @@ class crawler(object):
         rel_l = rel.lower()
         if rel_l.startswith("http://") or rel_l.startswith("https://"):
             curr_url, rel = rel, ""
-
-        # compute the new url based on import
+            
+        # compute the new url based on import 
         curr_url = urlparse.urldefrag(curr_url)[0]
         parsed_url = urlparse.urlparse(curr_url)
         return urlparse.urljoin(parsed_url.geturl(), rel)
@@ -187,7 +210,7 @@ class crawler(object):
         print "document title="+ repr(title_text)
 
         # TODO update document title for document id self._curr_doc_id
-
+    
     def _visit_a(self, elem):
         """Called when visiting <a> tags."""
 
@@ -200,17 +223,24 @@ class crawler(object):
 
         # add the just found URL to the url queue
         self._url_queue.append((dest_url, self._curr_depth))
-
+        
         # add a link entry into the database from the current document to the
         # other document
         self.add_link(self._curr_doc_id, self.document_id(dest_url))
 
         # TODO add title/alt/text to index for destination url
-
+    
     def _add_words_to_document(self):
         # TODO: knowing self._curr_doc_id and the list of all words and their
         #       font sizes (in self._curr_words), add all the words into the
         #       database for this document
+
+        for word_id, _ in self._curr_words:
+            if word_id in self._word_id_to_doc_ids:
+                self._word_id_to_doc_ids[word_id].add(self._curr_doc_id)
+            else:
+                self._word_id_to_doc_ids[word_id]=set({self._curr_doc_id})
+
         print "    num words="+ str(len(self._curr_words))
 
     def _increase_font_factor(self, factor):
@@ -218,7 +248,7 @@ class crawler(object):
         def increase_it(elem):
             self._font_size += factor
         return increase_it
-
+    
     def _visit_ignore(self, elem):
         """Ignore visiting this type of tag"""
         pass
@@ -232,14 +262,14 @@ class crawler(object):
             if word in self._ignored_words:
                 continue
             self._curr_words.append((self.word_id(word), self._font_size))
-
+        
     def _text_of(self, elem):
         """Get the text inside some element without any tags."""
         if isinstance(elem, Tag):
             text = [ ]
             for sub_elem in elem:
                 text.append(self._text_of(sub_elem))
-
+            
             return " ".join(text)
         else:
             return elem.string
@@ -251,11 +281,11 @@ class crawler(object):
         class DummyTag(object):
             next = False
             name = ''
-
+        
         class NextTag(object):
             def __init__(self, obj):
                 self.next = obj
-
+        
         tag = soup.html
         stack = [DummyTag(), soup.html]
 
@@ -279,9 +309,9 @@ class crawler(object):
                         self._exit[stack[-1].name.lower()](stack[-1])
                         stack.pop()
                         tag = NextTag(tag.parent.nextSibling)
-
+                    
                     continue
-
+                
                 # enter the tag
                 self._enter[tag_name](tag)
                 stack.append(tag)
@@ -309,7 +339,7 @@ class crawler(object):
                 continue
 
             seen.add(doc_id) # mark this document as haven't been visited
-
+            
             socket = None
             try:
                 socket = urllib2.urlopen(url, timeout=timeout)
