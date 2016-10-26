@@ -1,14 +1,14 @@
 # searchEngine
-
-Requires bottle framework in the root folder to work!  
-Python 2.7, BeautifulSoup 3.2.1  
+Python 2.7  
 
 ##Frontend
-###Frontend Dependencies
-beaker
-httplib2
-uritemplate
-google-api-python-client
+###Dependencies
+bottle  
+beaker  
+gevent  
+httplib2  
+uritemplate  
+google-api-python-client  
 oauth2client* #not sure if included in prev..
 
 ###To start server at port 80:  
@@ -22,6 +22,8 @@ and
 can run crawler.py at these locations. 
 
 ##Backend
+###Dependencies
+BeautifulSoup 3.2.1 
 ###To test  
 *Server must be running at port 80*  
 python tester.py
