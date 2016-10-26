@@ -2,11 +2,7 @@
 <html>
 <head>
 	<title>Results</title>
-<<<<<<< HEAD
 	<link rel="stylesheet" type="text/css" href="style.css">
-=======
-	<link rel="stylesheet" type="text/css" href="static/style.css">
->>>>>>> b10358f9db45cd995a31581e1c528172cc37dcb7
 </head>
 <body>
 	<p>Search for "{{query}}"</p>
@@ -29,8 +25,4 @@
 	% end
 	<a href="/"><button>Return to Query Page</button></a>
 </body>
-<<<<<<< HEAD
 </html>
-=======
-</html>
->>>>>>> b10358f9db45cd995a31581e1c528172cc37dcb7
