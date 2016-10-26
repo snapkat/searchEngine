@@ -1,0 +1,8 @@
+#junk
+*.DS_Store
+
+#Libraries
+bottle.*
+client_secrets.json
+data/
+
