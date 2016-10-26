@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 from gevent import monkey; monkey.patch_all()
 
 import json
@@ -126,15 +127,57 @@ def query_results():
     sess = bottle.request.environ.get('beaker.session')
 
     query = bottle.request.query.q
+=======
+from bottle import route, run, template, static_file, request
+from collections import Counter
+# TEMPLATE_PATH.insert(0, 'views')
+
+wordlist = Counter()
+
+
+@route('/test/1/<filename:path>')
+def test_1(filename):
+    # Apparently need to be careful with ./* working directory
+    return static_file(filename, root='./htmlcase1/')
+
+
+@route('/test/2/<filename:path>')
+def test_2(filename):
+    # Apparently need to be careful with ./* working directory
+    return static_file(filename, root='./htmlcase2/')
+
+
+@route('/static/<filename:path>')
+def send_static(filename):
+    # Apparently need to be careful with ./* working directory
+    return static_file(filename, root='./static/')
+
+
+@route('/')
+def hello():
+    global wordlist
+    return template("search", top_words=wordlist.most_common(20))
+
+
+@route('/results')
+def query_results():
+    global wordlist
+    query = request.query.q
+>>>>>>> b10358f9db45cd995a31581e1c528172cc37dcb7
     # exclude = '!"#$%&()*+,./:;<=>?@[\]^_`{|}~'
     exclude = ""
     clean_query = ''.join(ch for ch in query if ch not in exclude)
     words = clean_query.lower().split()
+<<<<<<< HEAD
+=======
+
+>>>>>>> b10358f9db45cd995a31581e1c528172cc37dcb7
     query_counter = Counter()
     # Log query word counts
     for word in words:
         query_counter[word] += 1
 
+<<<<<<< HEAD
     if (sess.get('code',0)):			
         word_dict[sess.get('user_email',0)] += query_counter
 
@@ -151,3 +194,12 @@ def query_results():
 
 
 bottle.run(app=app, host='0.0.0.0', port=80, debug=True)
+=======
+    wordlist += query_counter
+
+    return template("results", words=query_counter.most_common(),
+                    num_words=len(words), query=query)
+
+
+run(host='localhost', port=8080, debug=True)
+>>>>>>> b10358f9db45cd995a31581e1c528172cc37dcb7
