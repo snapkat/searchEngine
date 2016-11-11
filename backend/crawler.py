@@ -1,16 +1,16 @@
 
 # Copyright (C) 2011 by Peter Goodman
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in
 # all copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -25,6 +25,9 @@ from BeautifulSoup import *
 from collections import defaultdict
 import re
 
+import redis
+
+
 def attr(elem, attr):
     """An html attribute from an html element. E.g. <a href="">, then
     attr(elem, "href") will get the href or an empty string."""
@@ -33,7 +36,9 @@ def attr(elem, attr):
     except:
         return ""
 
+
 WORD_SEPARATORS = re.compile(r'\s|\n|\r|\t|[^a-zA-Z0-9\-_]')
+
 
 class crawler(object):
     """Represents 'Googlebot'. Populates a database by crawling and indexing
@@ -44,13 +49,17 @@ class crawler(object):
 
     def __init__(self, db_conn, url_file):
         """Initialize the crawler with a connection to the database to populate
-        and with the file containing the list of seed URLs to begin indexing."""
-        self._url_queue = [ ]
-        self._id_to_url = { }
-        self._id_to_word = { }
-        self._word_id_to_doc_ids = { }
-        self._word_to_id = { }
-        self._doc_to_id = { }
+        and with the file containing the list of seed URLs to begin indexing.
+        """
+        self._url_queue = []
+        self.r = redis.StrictRedis(host="localhost", port=6379, db=0)
+        '''
+        self._id_to_url = {}
+        self._id_to_word = {}
+        self._word_id_to_doc_ids = {}
+        self._word_to_id = {}
+        self._doc_to_id = {}
+        '''
 
         # functions to call when entering and exiting specific tags
         self._enter = defaultdict(lambda *a, **ka: self._visit_ignore)
@@ -91,8 +100,8 @@ class crawler(object):
 
         # never go in and parse these tags
         self._ignored_tags = set([
-            'meta', 'script', 'link', 'meta', 'embed', 'iframe', 'frame', 
-            'noscript', 'object', 'svg', 'canvas', 'applet', 'frameset', 
+            'meta', 'script', 'link', 'meta', 'embed', 'iframe', 'frame',
+            'noscript', 'object', 'svg', 'canvas', 'applet', 'frameset',
             'textarea', 'style', 'area', 'map', 'base', 'basefont', 'param',
         ])
 
@@ -105,8 +114,8 @@ class crawler(object):
         ])
 
         # TODO remove me in real version
-        self._mock_next_doc_id = 1
-        self._mock_next_word_id = 1
+        self._next_doc_id = 1
+        self._next_word_id = 1
 
         # keep track of some info about the page we are currently parsing
         self._curr_depth = 0
@@ -119,73 +128,77 @@ class crawler(object):
         try:
             with open(url_file, 'r') as f:
                 for line in f:
-                    self._url_queue.append((self._fix_url(line.strip(), ""), 0))
+                    self._url_queue.append(
+                        (self._fix_url(line.strip(), ""), 0))
         except IOError:
             pass
-    
-    def get_inverted_index(self):
-        """Returns inverted index mapping (from word id to document ids that contain 
-        the word)"""
-        return self._word_id_to_doc_ids
 
-    def get_resolved_inverted_index(self):
-        """Returns inverted index mapping, with ids replaced with words and urls"""
+    def get_inverted_index(self, cursor, count):
+        """Returns inverted index mapping (from word id to document ids that
+        contain the word)"""
+        return self.scan(cursor=cursor, match="word_id_to_doc_ids:*",
+                         count=count)
+
+    def get_resolved_inverted_index(self, cursor, count):
+        """Returns inverted index mapping, with ids replaced with words and
+        urls"""
         r_inv_index = {}
-        for word_id, doc_id_set in self._word_id_to_doc_ids.iteritems():
-            word = self._id_to_word[word_id]
+        for word_id in self.r.sscan(cursor, "word_id_to_doc_ids:*", count):
+
+            doc_id_set = self.r.smembers(word_id)
+            word_id = word_id.split(":")[1]
+            word = self.r.hget("id_to_word", word_id)
             doc_list = []
             for doc_id in doc_id_set:
-                doc_list.append(self._id_to_url[doc_id])
+                doc_list.append(self.r.hget("id_to_url", doc_id))
 
             r_inv_index[word] = set(doc_list)
 
         return r_inv_index
 
     # TODO remove me in real version
-    def _mock_insert_document(self, url):
+    def _insert_document(self, url):
         """A function that pretends to insert a url into a document db table
         and then returns that newly inserted document's id."""
-        ret_id = self._mock_next_doc_id
-        self._mock_next_doc_id += 1
+        ret_id = self._next_doc_id
+        self._next_doc_id += 1
         return ret_id
-    
+
     # TODO remove me in real version
-    def _mock_insert_word(self, word):
+    def _insert_word(self, word):
         """A function that pretends to instert a word into the lexicon db table
         and then returns that newly inserted word's id."""
-        ret_id = self._mock_next_word_id
-        self._mock_next_word_id += 1
+        ret_id = self._next_word_id
+        self._next_word_id += 1
+        self.r.hset("word_to_id", word, ret_id)
+        self.r.hset("id_to_word", ret_id, word)
         return ret_id
-    
+
     def word_id(self, word):
-        """Get the word id of some specific word."""
-        if word in self._word_to_id:
-            return self._word_to_id[word]
-        
+        """Returns the word id of some specific word."""
+        if self.r.hexists("word_to_id", word):
+            return self.r.hget("word_to_id", word)
+
         # TODO: 1) add the word to the lexicon, if that fails, then the
         #          word is in the lexicon
-        #       2) query the lexicon for the id assigned to this word, 
+        #       2) query the lexicon for the id assigned to this word,
         #          store it in the word id cache, and return the id.
+        return self._insert_word(word)
 
-        word_id = self._mock_insert_word(word)
-        self._word_to_id[word] = word_id
-        self._id_to_word[word_id] = word
-        return word_id
-    
     def document_id(self, url):
         """Get the document id for some url."""
-        if url in self._doc_to_id:
-            return self._doc_to_id[url]
-        
+        if self.r.hexists("doc_to_id", url):
+            return self.r.hget("doc_to_id", url)
+
         # TODO: just like word id cache, but for documents. if the document
         #       doesn't exist in the db then only insert the url and leave
         #       the rest to their defaults.
-        
-        doc_id = self._mock_insert_document(url)
-        self._doc_to_id[url] = doc_id
-        self._id_to_url[doc_id] = url
+
+        doc_id = self._insert_document(url)
+        self.r.hset("doc_to_id", url, doc_id)
+        self.r.hset("id_to_doc", doc_id, url)
         return doc_id
-    
+
     def _fix_url(self, curr_url, rel):
         """Given a url and either something relative to that url or another url,
         get a properly parsed url."""
@@ -193,8 +206,8 @@ class crawler(object):
         rel_l = rel.lower()
         if rel_l.startswith("http://") or rel_l.startswith("https://"):
             curr_url, rel = rel, ""
-            
-        # compute the new url based on import 
+
+        # compute the new url based on import
         curr_url = urlparse.urldefrag(curr_url)[0]
         parsed_url = urlparse.urlparse(curr_url)
         return urlparse.urljoin(parsed_url.geturl(), rel)
@@ -207,48 +220,46 @@ class crawler(object):
     def _visit_title(self, elem):
         """Called when visiting the <title> tag."""
         title_text = self._text_of(elem).strip()
-        print "document title="+ repr(title_text)
+        print "document title=" + repr(title_text)
 
         # TODO update document title for document id self._curr_doc_id
-    
+
     def _visit_a(self, elem):
         """Called when visiting <a> tags."""
 
-        dest_url = self._fix_url(self._curr_url, attr(elem,"href"))
+        dest_url = self._fix_url(self._curr_url, attr(elem, "href"))
 
-        #print "href="+repr(dest_url), \
+        # print "href="+repr(dest_url), \
         #      "title="+repr(attr(elem,"title")), \
         #      "alt="+repr(attr(elem,"alt")), \
         #      "text="+repr(self._text_of(elem))
 
         # add the just found URL to the url queue
         self._url_queue.append((dest_url, self._curr_depth))
-        
+
         # add a link entry into the database from the current document to the
         # other document
         self.add_link(self._curr_doc_id, self.document_id(dest_url))
 
         # TODO add title/alt/text to index for destination url
-    
+
     def _add_words_to_document(self):
         # TODO: knowing self._curr_doc_id and the list of all words and their
         #       font sizes (in self._curr_words), add all the words into the
         #       database for this document
 
         for word_id, _ in self._curr_words:
-            if word_id in self._word_id_to_doc_ids:
-                self._word_id_to_doc_ids[word_id].add(self._curr_doc_id)
-            else:
-                self._word_id_to_doc_ids[word_id]=set({self._curr_doc_id})
+            self.r.sadd("word_id_to_doc_ids:%s" % word_id,
+                            self._curr_doc_id)
 
-        print "    num words="+ str(len(self._curr_words))
+        print "    num words=" + str(len(self._curr_words))
 
     def _increase_font_factor(self, factor):
         """Increade/decrease the current font size."""
         def increase_it(elem):
             self._font_size += factor
         return increase_it
-    
+
     def _visit_ignore(self, elem):
         """Ignore visiting this type of tag"""
         pass
@@ -262,30 +273,31 @@ class crawler(object):
             if word in self._ignored_words:
                 continue
             self._curr_words.append((self.word_id(word), self._font_size))
-        
+
     def _text_of(self, elem):
         """Get the text inside some element without any tags."""
         if isinstance(elem, Tag):
-            text = [ ]
+            text = []
             for sub_elem in elem:
                 text.append(self._text_of(sub_elem))
-            
+
             return " ".join(text)
         else:
             return elem.string
 
     def _index_document(self, soup):
-        """Traverse the document in depth-first order and call functions when entering
-        and leaving tags. When we come accross some text, add it into the index. This
-        handles ignoring tags that we have no business looking at."""
+        """Traverse the document in depth-first order and call functions when
+        entering and leaving tags. When we come accross some text, add it into
+        the index. This handles ignoring tags that we have no business looking
+        at."""
         class DummyTag(object):
             next = False
             name = ''
-        
+
         class NextTag(object):
             def __init__(self, obj):
                 self.next = obj
-        
+
         tag = soup.html
         stack = [DummyTag(), soup.html]
 
@@ -309,9 +321,9 @@ class crawler(object):
                         self._exit[stack[-1].name.lower()](stack[-1])
                         stack.pop()
                         tag = NextTag(tag.parent.nextSibling)
-                    
+
                     continue
-                
+
                 # enter the tag
                 self._enter[tag_name](tag)
                 stack.append(tag)
@@ -338,8 +350,8 @@ class crawler(object):
             if doc_id in seen:
                 continue
 
-            seen.add(doc_id) # mark this document as haven't been visited
-            
+            seen.add(doc_id)  # mark this document as haven't been visited
+
             socket = None
             try:
                 socket = urllib2.urlopen(url, timeout=timeout)
@@ -349,10 +361,10 @@ class crawler(object):
                 self._curr_url = url
                 self._curr_doc_id = doc_id
                 self._font_size = 0
-                self._curr_words = [ ]
+                self._curr_words = []
                 self._index_document(soup)
                 self._add_words_to_document()
-                print "    url="+repr(self._curr_url)
+                print "    url=" + repr(self._curr_url)
 
             except Exception as e:
                 print e
@@ -360,6 +372,7 @@ class crawler(object):
             finally:
                 if socket:
                     socket.close()
+
 
 if __name__ == "__main__":
     bot = crawler(None, "urls.txt")

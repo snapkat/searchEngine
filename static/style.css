@@ -4,6 +4,11 @@
 
 h1 {
 	margin-top: 0.1em;
+	font-size: 30px;
+}
+
+.hidden {
+	display: none;
 }
 
 .white {
