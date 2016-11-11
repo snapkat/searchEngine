@@ -62,7 +62,7 @@ def hello():
 def home():
     flow = flow_from_clientsecrets("client_secrets.json",
                                    scope='https://www.googleapis.com/auth/plus.me https://www.googleapis.com/auth/userinfo.email',
-                                   redirect_uri="http://127.0.0.1/redirect")
+                                   redirect_uri="http://moogle.ml/redirect")
 
     uri = flow.step1_get_authorize_url()
     bottle.redirect(str(uri))
@@ -76,7 +76,7 @@ def redirect_page():
     flow = OAuth2WebServerFlow(client_id=oauth_cred['client_id'],
                                client_secret=oauth_cred['client_secret'],
                                scope='https://www.googleapis.com/auth/plus.me https://www.googleapis.com/auth/userinfo.email',
-                               redirect_uri="http://127.0.0.1/redirect")
+                               redirect_uri="http://moogle.ml/redirect")
 
     code = bottle.request.query.get('code', '')
     print code
