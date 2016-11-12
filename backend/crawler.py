@@ -150,7 +150,7 @@ class crawler(object):
             word = self.r.hget("id_to_word", word_id)
             doc_list = []
             for doc_id in doc_id_set:
-                doc_list.append(self.r.hget("id_to_url", doc_id))
+                doc_list.append(self.r.hget("id_to_doc", doc_id))
 
             r_inv_index[word] = set(doc_list)
 
@@ -160,43 +160,41 @@ class crawler(object):
     def _insert_document(self, url):
         """A function that pretends to insert a url into a document db table
         and then returns that newly inserted document's id."""
-        ret_id = self._next_doc_id
+        doc_id = self._next_doc_id
         self._next_doc_id += 1
-        return ret_id
+        self.r.hset("doc_to_id", url, doc_id)
+        self.r.hset("id_to_doc", doc_id, url)
+        return doc_id
 
-    # TODO remove me in real version
     def _insert_word(self, word):
         """A function that pretends to instert a word into the lexicon db table
         and then returns that newly inserted word's id."""
-        ret_id = self._next_word_id
+        word_id = self._next_word_id
         self._next_word_id += 1
-        self.r.hset("word_to_id", word, ret_id)
-        self.r.hset("id_to_word", ret_id, word)
-        return ret_id
+        self.r.hset("word_to_id", word, word_id)
+        self.r.hset("id_to_word", word_id, word)
+        return word_id
 
     def word_id(self, word):
         """Returns the word id of some specific word."""
-        if self.r.hexists("word_to_id", word):
-            return self.r.hget("word_to_id", word)
-
+        word_id = self.r.hget("word_to_id", word)
+        if not word_id:
+            word_id = self._insert_word(word)
         # TODO: 1) add the word to the lexicon, if that fails, then the
         #          word is in the lexicon
         #       2) query the lexicon for the id assigned to this word,
         #          store it in the word id cache, and return the id.
-        return self._insert_word(word)
+        return word_id
 
     def document_id(self, url):
         """Get the document id for some url."""
-        if self.r.hexists("doc_to_id", url):
-            return self.r.hget("doc_to_id", url)
-
+        doc_id = self.r.hget("doc_to_id", url)
+        if not doc_id:
+            doc_id = self._insert_document(url)
         # TODO: just like word id cache, but for documents. if the document
         #       doesn't exist in the db then only insert the url and leave
         #       the rest to their defaults.
 
-        doc_id = self._insert_document(url)
-        self.r.hset("doc_to_id", url, doc_id)
-        self.r.hset("id_to_doc", doc_id, url)
         return doc_id
 
     def _fix_url(self, curr_url, rel):

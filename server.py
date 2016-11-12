@@ -42,11 +42,10 @@ def serve_pictures(filename):
     return bottle.static_file(filename, root='./static/')
 
 
-""" Initialization route: checks if session user logged into Moo, else anon-mode """
-
-
 @bottle.route('/')
 def hello():
+    """Initialization route: checks if session user logged into Moo, else
+    anon-mode."""
 
     sess = bottle.request.environ.get('beaker.session')
 
@@ -55,11 +54,11 @@ def hello():
     else:
         return bottle.template("search", user="")
 
-""" if the sign-in selected, passes user through Google sign-in protocol """
-
 
 @bottle.route('/signin', 'GET')
 def home():
+    """If the sign-in selected, passes user through Google sign-in protocol.
+    """
     flow = flow_from_clientsecrets("client_secrets.json",
                                    scope='https://www.googleapis.com/auth/plus.me https://www.googleapis.com/auth/userinfo.email',
                                    redirect_uri="http://moogle.ml/redirect")
@@ -67,11 +66,11 @@ def home():
     uri = flow.step1_get_authorize_url()
     bottle.redirect(str(uri))
 
-""" redirect route: If user signed in, will reauthenticate token information """
-
 
 @bottle.route('/redirect')
 def redirect_page():
+    """Redirect route: If user signed in, will reauthenticate token information.
+    """
     global oauth_cred
     flow = OAuth2WebServerFlow(client_id=oauth_cred['client_id'],
                                client_secret=oauth_cred['client_secret'],
@@ -107,12 +106,11 @@ def redirect_page():
     return bottle.template("search", user=user_email,
                            top_words=word_dict[sess.get('user_email', 0)].most_common(20))
 
-""" changes sign-in status of user """
-
 
 @bottle.route('/signout', 'GET')
 def goodbye():
-    """ logs the user out, returns to anonymous-mode """
+    """Changes sign-in status of user. """
+    """Logs the user out, returns to anonymous-mode. """
     sess = bottle.request.environ.get('beaker.session')
     sess.delete()
 
@@ -137,8 +135,21 @@ def send_static(filename):
     return bottle.static_file(filename, root='./')
 
 
+def get_resolved_urls(word, cursor=0, count=5):
+    """Returns a list of urls where the document contains the word."""
+    w_id = r.hget("word_to_id", word)
+
+    doc_id_set = r.smembers("word_id_to_doc_ids:%s" % w_id)
+    doc_list = []
+    for doc_id in doc_id_set:
+        doc_list.append(r.hget("id_to_doc", doc_id))
+
+    return doc_list
+
+
 def query_results():
     query = bottle.request.query.q
+    cursor = bottle.request.query.cursor
     # exclude = '!"#$%&()*+,./:;<=>?@[\]^_`{|}~'
     exclude = ""
     clean_query = ''.join(ch for ch in query if ch not in exclude)
@@ -149,13 +160,23 @@ def query_results():
     for word in words:
         query_counter[word] += 1
 
-    return {"words": query_counter, "num_words": len(words), "query": query}
+    # Get search results
+    if not words:
+        return ""
+
+    doc_list = get_resolved_urls(words[0])
+
+    return {"words": query_counter, "docs": doc_list,
+            "num_words": len(words), "query": query}
 
 
 @bottle.route('/results')
 def ajax_query():
     d = query_results()
-    d["words"] = d["words"].most_common()
+    if not d:
+        return ""
+
+    d["docs"] = d["docs"][:5]
     return bottle.template("res", d)
 
 
@@ -174,5 +195,6 @@ def top20_results():
                                top_words=top_words)
 
     return ""
+
 
 bottle.run(app=app, host='0.0.0.0', port=80, debug=True)

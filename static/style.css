@@ -1,10 +1,32 @@
 * {
 	line-height: 1.5em;
+	
 }
 
 h1 {
 	margin-top: 0.1em;
-	font-size: 30px;
+	margin-bottom: 0.4em;
+	font-size: 80px;
+	text-align:center;
+	background-image: url(http://127.0.0.1/cow.jpeg);
+	background-repeat: no-repeat;
+	background-position: 52% 45%;
+	background-blend-mode: lighten;
+	height: 250px;
+	line-height: 350px;
+	/*text-shadow: 1px 0 0 #fff, 0 -1px 0 #fff, 0 1px 0 #fff, -1px 0 0 #fff;*/
+}
+
+body {
+	padding: 10px 20px;
+}
+
+ul {
+	list-style: none;
+}
+
+img {
+	height: 200px;
 }
 
 .hidden {
@@ -16,3 +38,24 @@ h1 {
 	text-shadow: 1px 0 0 #000, 0 -1px 0 #000, 0 1px 0 #000, -1px 0 0 #000;
 }
 
+#oauth {
+	display: inline-block;
+	float: right;
+}
+
+#q {
+	width: 45%;
+	height: 30px;
+	font-size: 22px;
+}
+
+#s_buttons {
+
+}
+
+.h_center {
+	width: 20%;
+	display: block;
+	margin-left: auto;
+	margin-right: auto;
+}
