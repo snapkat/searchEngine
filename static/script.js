@@ -7,18 +7,17 @@ function show_query_results(resp){
 	$("#res").html(resp);
 }
 
-
-$("#prev").click(function(){
+function prev_page(){
 	if (page>1){
-		page =page-1;
+		page = page-1;
 		ajax_query();
 	}
-});
+}
 
-$("#next").click(function(){
+function next_page(){
 	page=page+1;
 	ajax_query();
-});
+}
 
 function ajax_query(){
 	var q = q_box.val();
@@ -26,11 +25,6 @@ function ajax_query(){
 		url:"/results?q=" + q +"&page="+page.toString(),
 		success: show_query_results
 	});
-	if (q){
-		$("#page_buttons").show();
-	}else{
-		$("#page_buttons").hide();
-	}
 }
 
 function search(){

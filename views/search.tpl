@@ -27,10 +27,6 @@
 	<br>
 	<div id="res">
 	</div>
-	<div id="page_buttons" class="hidden">
-		<button id="prev">Prev Page</button>
-		<button id="next">Next Page</button>
-	</div>
 	<div id="top20">
 	</div>
 	<script type="text/javascript" src="script.js"></script>
