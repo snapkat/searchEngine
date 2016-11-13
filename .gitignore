@@ -1,8 +1,13 @@
 #junk
 *.DS_Store
+*nohup.out
+
+#compiled
+*.pyc
 
 #Libraries
 bottle.*
+redis_host.json
 client_secrets.json
 data/
 

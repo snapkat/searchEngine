@@ -8,9 +8,8 @@
 <body>
 	<div id="oauth">
 	% if user:
-		<h3>Signed in as: {{user}}</h3>
 		<form method="get" action="/signout">
-		<button type="submit"> Sign-out</button>
+		<span>Signed in as: {{user}}</span><button type="submit"> Sign-out</button>
 		</form>	
 	% else:
 		<form method="get" action="/signin">
