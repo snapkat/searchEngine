@@ -13,7 +13,7 @@
 	% 	for url in rslt_lst:
 	<tr>
 	 	<td>{{url[0]}}</td>
-		<td><a href="http://{{url[1]}}" target="_blank">{{url[1]}}</a></td>
+		<td><a href="{{url[1]}}" target="_blank">{{url[1]}}</a></td>
 	</tr>
 	% 	end
 	% end
