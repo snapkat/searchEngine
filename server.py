@@ -187,7 +187,7 @@ def query_results():
     print "page_results", page_results
 
     return {"words": query_counter, "num_words": len(words), "query": query,
-            "rslt_lst": page_results}
+            "rslt_lst": page_results, "page": page}
 
 
 @bottle.route('/results')

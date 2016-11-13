@@ -1,5 +1,7 @@
 <p>Search for "{{query}}"</p>
 <p>Number of Query Words: {{num_words}}</p>
+<p>Page: {{page}}</p>
+
 <table>
 % if len(rslt_lst) >= 1:
 <table id="results">

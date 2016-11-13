@@ -33,7 +33,12 @@ function ajax_query(){
 	}
 }
 
-q_box.keyup(ajax_query);
+function search(){
+	page = 1;
+	ajax_query();
+}
+
+q_box.keyup(search);
 
 $("#clear").click(function(){
 	q_box.val("");
