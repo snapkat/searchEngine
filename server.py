@@ -80,7 +80,7 @@ def redirect_page():
                                redirect_uri="http://moogle.ml/redirect")
 
     code = bottle.request.query.get('code', '')
-    print code
+    # print code
     credentials = flow.step2_exchange(code)
     # if token has expired without signout, re-authorize
     if (credentials is None or credentials.invalid):
@@ -168,23 +168,28 @@ def query_results():
         return ""
 
     # pulls data from the redis db to build the sorted list of urls
-    page = int(bottle.request.query.page)
+    page = 1
+    if "page" in bottle.request.query:
+        try:
+            page = int(bottle.request.query.page)
+        except:
+            return "Bad Page!"
 
     hits_by_rank = get_resolved_urls(words[0])
-    print "#hits", len(hits_by_rank)
+    # print "#hits", len(hits_by_rank)
 
     # Paging
     num_pages = len(hits_by_rank) // 5
     if len(hits_by_rank) % 5:
         num_pages += 1
-    print "num_pages", num_pages, "page", page
+    # print "num_pages", num_pages, "page", page
 
     if page > num_pages:
         page = num_pages
 
     start = (page - 1) * 5
     page_results = hits_by_rank[start: min(start + 5, len(hits_by_rank))]
-    print "page_results", page_results
+    # print "page_results", page_results
 
     return {"words": query_counter, "num_words": len(words), "query": query,
             "rslt_lst": page_results, "page": page, "max_page": num_pages}
