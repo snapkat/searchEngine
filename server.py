@@ -32,11 +32,18 @@ app = SessionMiddleware(bottle.app(), session_opts)
 
 word_dict = {}
 oauth_cred = {}
-r = redis.StrictRedis(host="localhost", port=6379, db=0)
-r_rank = redis.StrictRedis(host="localhost", port=6379, db=1)
+redis_host = ""
+with open('redis_host.json') as f:
+    redis_host = json.loads(f.read())['host']
+
+r = redis.StrictRedis(host=redis_host, port=6379, db=0)
+r_rank = redis.StrictRedis(host=redis_host, port=6379, db=1)
+
 
 with open('client_secrets.json') as f:
     oauth_cred = json.loads(f.read())['web']
+
+
 
 
 @bottle.route('/<filename:path>', 'GET')

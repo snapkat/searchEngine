@@ -23,6 +23,7 @@ import urlparse
 from BeautifulSoup import *
 from collections import defaultdict
 import re
+import json
 
 import redis
 from pg_rank import page_rank
@@ -38,7 +39,9 @@ def attr(elem, attr):
 
 
 WORD_SEPARATORS = re.compile(r'\s|\n|\r|\t|[^a-zA-Z0-9\-_]')
-
+redis_host = ""
+with open('redis_host.json') as f:
+    redis_host = json.loads(f.read())['host']
 
 class crawler(object):
     """Represents 'Googlebot'. Populates a database by crawling and indexing
@@ -52,8 +55,8 @@ class crawler(object):
         """
 
         self._url_queue = []
-        self.r = redis.StrictRedis(host="localhost", port=6379, db=0)
-        self.r_rank = redis.StrictRedis(host="localhost", port=6379, db=1)
+        self.r = redis.StrictRedis(host=redis_host, port=6379, db=0)
+        self.r_rank = redis.StrictRedis(host=redis_host, port=6379, db=1)
 
         '''
         self._id_to_url = {}
