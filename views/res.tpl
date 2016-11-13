@@ -4,10 +4,10 @@
 <table>
 % if len(rslt_lst) >= 1:
 <table id="results">
-	<tr>
+	<tr><thead>
 	 	<th>PageRank</th>
 		<th>URL</th>
-		</tr>
+	</thead></tr>
 	% if rslt_lst:
 	% 	for url in rslt_lst:
 	<tr>
@@ -17,7 +17,7 @@
 	% 	end
 	% end
 </table>
-<div id="page_buttons">
+<div id="page_buttons" class="h_center">
 	% if page > 1:
 	<button id="prev" onclick="prev_page()">Prev Page</button>
 	% end

@@ -32,8 +32,8 @@ app = SessionMiddleware(bottle.app(), session_opts)
 
 word_dict = {}
 oauth_cred = {}
-r = redis.StrictRedis(host="crawler-pr.kdoxgp.0001.use1.cache.amazonaws.com", port=6379, db=0)
-r_rank = redis.StrictRedis(host="crawler-pr.kdoxgp.0001.use1.cache.amazonaws.com", port=6379, db=1)
+r = redis.StrictRedis(host="localhost", port=6379, db=0)
+r_rank = redis.StrictRedis(host="localhost", port=6379, db=1)
 
 with open('client_secrets.json') as f:
     oauth_cred = json.loads(f.read())['web']

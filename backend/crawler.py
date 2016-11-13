@@ -52,8 +52,8 @@ class crawler(object):
         """
 
         self._url_queue = []
-        self.r = redis.StrictRedis(host="crawler-pr.kdoxgp.0001.use1.cache.amazonaws.com", port=6379, db=0)
-        self.r_rank = redis.StrictRedis(host="crawler-pr.kdoxgp.0001.use1.cache.amazonaws.com", port=6379, db=1)
+        self.r = redis.StrictRedis(host="localhost", port=6379, db=0)
+        self.r_rank = redis.StrictRedis(host="localhost", port=6379, db=1)
 
         '''
         self._id_to_url = {}
