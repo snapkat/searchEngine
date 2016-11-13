@@ -33,6 +33,8 @@ app = SessionMiddleware(bottle.app(), session_opts)
 word_dict = {}
 oauth_cred = {}
 r = redis.StrictRedis(host="localhost", port=6379, db=0)
+r_rank = redis.StrictRedis(host="localhost", port=6379, db=1)
+
 with open('client_secrets.json') as f:
     oauth_cred = json.loads(f.read())['web']
 
@@ -140,16 +142,17 @@ def get_resolved_urls(word, cursor=0, count=5):
     w_id = r.hget("word_to_id", word)
 
     doc_id_set = r.smembers("word_id_to_doc_ids:%s" % w_id)
-    doc_list = []
+    doc_rank = []
     for doc_id in doc_id_set:
-        doc_list.append(r.hget("id_to_doc", doc_id))
+        url = r.hget("id_to_doc", doc_id)
+        pg_rank = float(r_rank.hget("doc_id_ranks", doc_id))
+        doc_rank.append((pg_rank, url))
 
-    return doc_list
+    return sorted(doc_rank, key=lambda tup: tup[0], reverse=True)
 
 
 def query_results():
     query = bottle.request.query.q
-    cursor = bottle.request.query.cursor
     # exclude = '!"#$%&()*+,./:;<=>?@[\]^_`{|}~'
     exclude = ""
     clean_query = ''.join(ch for ch in query if ch not in exclude)
@@ -164,10 +167,27 @@ def query_results():
     if not words:
         return ""
 
-    doc_list = get_resolved_urls(words[0])
+    # pulls data from the redis db to build the sorted list of urls
+    page = int(bottle.request.query.page)
 
-    return {"words": query_counter, "docs": doc_list,
-            "num_words": len(words), "query": query}
+    hits_by_rank = get_resolved_urls(words[0])
+    print "#hits", len(hits_by_rank)
+
+    # Paging
+    num_pages = len(hits_by_rank) // 5
+    if len(hits_by_rank) % 5:
+        num_pages += 1
+    print "num_pages", num_pages, "page", page
+
+    if page > num_pages:
+        page = num_pages
+
+    start = (page - 1) * 5
+    page_results = hits_by_rank[start: min(start + 5, len(hits_by_rank))]
+    print "page_results", page_results
+
+    return {"words": query_counter, "num_words": len(words), "query": query,
+            "rslt_lst": page_results}
 
 
 @bottle.route('/results')
@@ -176,7 +196,7 @@ def ajax_query():
     if not d:
         return ""
 
-    d["docs"] = d["docs"][:5]
+    d["words"] = d["words"].most_common()
     return bottle.template("res", d)
 
 
@@ -195,6 +215,13 @@ def top20_results():
                                top_words=top_words)
 
     return ""
+
+
+@bottle.error(400)
+@bottle.error(404)
+def error_handle(error):
+    sess = bottle.request.environ.get('beaker.session')
+    return bottle.template("error", user="")
 
 
 bottle.run(app=app, host='0.0.0.0', port=80, debug=True)

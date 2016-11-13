@@ -1,4 +1,3 @@
-
 # Copyright (C) 2011 by Peter Goodman
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -26,6 +25,7 @@ from collections import defaultdict
 import re
 
 import redis
+from pg_rank import page_rank
 
 
 def attr(elem, attr):
@@ -43,7 +43,6 @@ WORD_SEPARATORS = re.compile(r'\s|\n|\r|\t|[^a-zA-Z0-9\-_]')
 class crawler(object):
     """Represents 'Googlebot'. Populates a database by crawling and indexing
     a subset of the Internet.
-
     This crawler keeps track of font sizes and makes it simpler to manage word
     ids and document ids."""
 
@@ -51,8 +50,11 @@ class crawler(object):
         """Initialize the crawler with a connection to the database to populate
         and with the file containing the list of seed URLs to begin indexing.
         """
+
         self._url_queue = []
         self.r = redis.StrictRedis(host="localhost", port=6379, db=0)
+        self.r_rank = redis.StrictRedis(host="localhost", port=6379, db=1)
+
         '''
         self._id_to_url = {}
         self._id_to_word = {}
@@ -60,6 +62,9 @@ class crawler(object):
         self._word_to_id = {}
         self._doc_to_id = {}
         '''
+
+        # Directed Graph; list of from-to tuple pairs
+        self._url_graph = []
 
         # functions to call when entering and exiting specific tags
         self._enter = defaultdict(lambda *a, **ka: self._visit_ignore)
@@ -136,15 +141,18 @@ class crawler(object):
     def get_inverted_index(self, cursor, count):
         """Returns inverted index mapping (from word id to document ids that
         contain the word)"""
-        return self.scan(cursor=cursor, match="word_id_to_doc_ids:*",
-                         count=count)
+        inv_ind = {}
+        for k in self.r.scan_iter(match="word_id_to_doc_ids:*", count=count):
+            w_id = int(k.split(":", 1)[1])
+            inv_ind[w_id] = self.r.smembers(k)
 
-    def get_resolved_inverted_index(self, cursor, count):
+        return inv_ind
+
+    def get_resolved_inverted_index(self):
         """Returns inverted index mapping, with ids replaced with words and
         urls"""
         r_inv_index = {}
-        for word_id in self.r.sscan(cursor, "word_id_to_doc_ids:*", count):
-
+        for word_id in self.r.scan_iter(match="word_id_to_doc_ids:*"):
             doc_id_set = self.r.smembers(word_id)
             word_id = word_id.split(":")[1]
             word = self.r.hget("id_to_word", word_id)
@@ -153,7 +161,6 @@ class crawler(object):
                 doc_list.append(self.r.hget("id_to_doc", doc_id))
 
             r_inv_index[word] = set(doc_list)
-
         return r_inv_index
 
     # TODO remove me in real version
@@ -241,6 +248,16 @@ class crawler(object):
 
         # TODO add title/alt/text to index for destination url
 
+    # def _build_graph(self, elem):
+        """Called when visiting <a> tags."""
+        # Builds directed graph
+        #dest_url = self._fix_url(self._curr_url, attr(elem, "href"))
+
+        # Add current edge to graph
+        dest_url_id = int(self.document_id(dest_url))
+        curr_edge = (int(self._curr_doc_id), dest_url_id)
+        self._url_graph.append(curr_edge)
+
     def _add_words_to_document(self):
         # TODO: knowing self._curr_doc_id and the list of all words and their
         #       font sizes (in self._curr_words), add all the words into the
@@ -248,7 +265,7 @@ class crawler(object):
 
         for word_id, _ in self._curr_words:
             self.r.sadd("word_id_to_doc_ids:%s" % word_id,
-                            self._curr_doc_id)
+                        self._curr_doc_id)
 
         print "    num words=" + str(len(self._curr_words))
 
@@ -282,6 +299,9 @@ class crawler(object):
             return " ".join(text)
         else:
             return elem.string
+
+    # def _get_doc_info(self, elem):
+        """Gets the title and first 12 words of webpage"""
 
     def _index_document(self, soup):
         """Traverse the document in depth-first order and call functions when
@@ -332,8 +352,10 @@ class crawler(object):
 
     def crawl(self, depth=2, timeout=3):
         """Crawl the web!"""
-        seen = set()
+        self.r.flushall()
+        self.r_rank.flushall()
 
+        seen = set()
         while len(self._url_queue):
 
             url, depth_ = self._url_queue.pop()
@@ -371,7 +393,38 @@ class crawler(object):
                 if socket:
                     socket.close()
 
+        # Gets the page rankings for each doc id
+        doc_id_ranks = page_rank(self._url_graph)
+
+        url_ranks = defaultdict()
+
+        # For documents without outgoing links, set page rank to 0
+        doc_id_to_url = self.r.hgetall("id_to_doc")
+
+        all_doc_ids = doc_id_to_url.keys()
+        int_doc_ids = [int(i) for i in all_doc_ids]
+
+        # print type(doc_id_to_url[0])
+        # Set pages with no outgoing links to rank 0
+        for id in int_doc_ids:
+            if id not in doc_id_ranks:
+                doc_id_ranks[id] = 0
+
+        # Url to rank mapping
+        for doc_id, rank in doc_id_ranks.iteritems():
+            curr_url = doc_id_to_url[str(doc_id)]
+            url_ranks[curr_url] = rank
+
+        # Save rankings to persistent storage
+        self.r_rank.hmset("doc_id_ranks", doc_id_ranks)
+        self.r_rank.hmset("url_ranks", url_ranks)
+
+        # Get the resolved inverted index and save it
+        resolved_inv_index = self.get_resolved_inverted_index()
+        self.r_rank.hmset("resolved_inv_index", resolved_inv_index)
+
 
 if __name__ == "__main__":
     bot = crawler(None, "urls.txt")
     bot.crawl(depth=1)
+    print bot.get_resolved_inverted_index()

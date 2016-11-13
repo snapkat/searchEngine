@@ -1,14 +1,13 @@
 * {
 	line-height: 1.5em;
-	
 }
 
 h1 {
 	margin-top: 0.1em;
-	margin-bottom: 0.4em;
+	margin-bottom: 0.1em;
 	font-size: 80px;
 	text-align:center;
-	background-image: url(http://127.0.0.1/cow.jpeg);
+	background-image: url(http://moogle.ml/cow.jpeg);
 	background-repeat: no-repeat;
 	background-position: 52% 45%;
 	background-blend-mode: lighten;
