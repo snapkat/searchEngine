@@ -13,12 +13,12 @@
 <body>
 	<div id="oauth" class="row">
 	% if user:
-		<form method="get" action="/signout" class="twelve columns">
-		<span>Hi <img src="{{pic}}"><strong>{{user}}</strong>!</span><button type="submit" class="right"> Sign-out</button>
+		<form method="get" action="/signout" class="three columns right">
+		<img class="user_pic" src="{{pic}}"><span>Hi <strong>{{user}}</strong>!</span><button id="sign_out" type="submit" class="right small_button"> Sign-out</button>
 		</form>	
 	% else:
 		<form method="get" action="/signin" class="two columns right">
-		<button id="sign-in" type="submit"> Sign-in with Google</button>
+		<button id="sign-in" type="submit" class="small_button"> Sign-in with Google</button>
 		</form>	
 	% end
 	</div><br>
