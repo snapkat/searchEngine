@@ -2,7 +2,7 @@
 
 % if len(rslt_lst) >= 1:
 <table id="results">
-	<h3>Results</h3>
+	<h4>Results</h4>
 	% if rslt_lst:
 	% 	for url in rslt_lst:
 	<ul>
@@ -28,24 +28,5 @@
 </div>
 
 % else:
-	<p><h2>No results for {{words[0][0]}} found</h2></p>
-% end
-% if num_words > 1:
-<div class="row">
-<table id="words" class="u-full-width">
-	<tr>
-	 	<th>Word</th>
-		<th>Count</th>
-	</tr>
-	% if words:
-	% 	for word, count in words:
-	<tr>
-	 	<td>{{word}}</td>
-		<td>{{count}}</td>
-	</tr>
-	% 	end
-	% end
-
-</table>
-</div>
+	<p><h4>No results for {{words[0][0]}} found</h4></p>
 % end

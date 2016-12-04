@@ -1,4 +1,4 @@
-from gevent import monkey
+from gevent import monkey; monkey.patch_all()
 from collections import Counter
 from oauth2client.client import flow_from_clientsecrets
 from oauth2client.client import OAuth2WebServerFlow
@@ -13,8 +13,6 @@ import bottle
 
 import httplib2
 import redis
-
-monkey.patch_all()
 
 # TEMPLATE_PATH.insert(0, 'views')
 

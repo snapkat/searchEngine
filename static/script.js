@@ -32,7 +32,7 @@ function search(){
 	ajax_query();
 }
 
-q_box.keyup(search);
+q_box.keyup($.debounce(120, search));
 
 $("#clear").click(function(){
 	q_box.val("");
