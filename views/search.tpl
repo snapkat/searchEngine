@@ -2,26 +2,36 @@
 <html>
 <head>
 	<title>Moogle</title>
-	<link rel="stylesheet" type="text/css" href="style.css">
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+	
+    <link href="//fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
+    <link rel="stylesheet" href="normalize.css">
+  	<link rel="stylesheet" href="skeleton.css">
+  	<link rel="stylesheet" type="text/css" href="style.css">
+  	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
 </head>
 <body>
-	<div id="oauth">
+	<div id="oauth" class="row">
 	% if user:
 		<form method="get" action="/signout">
 		<span>Signed in as: {{user}}</span><button type="submit"> Sign-out</button>
 		</form>	
 	% else:
-		<form method="get" action="/signin">
+		<form method="get" action="/signin" class="two columns">
 		<button id="sign-in" type="submit"> Sign-in with Google</button>
 		</form>	
 	% end
 	</div><br>
-	<h1><span class="white">Moo</span>gle</h1>
-	<input id="q" class="h_center" type="text" name="q" autocomplete="off" placeholder="Search">
-	<div class="h_center hidden">
-		<button id="search_button" type="submit"> Moo!</button>
-		<button id="clear">Clear</button>
+	<div class="search_box">
+	<div class="row">
+		<h1 class="twelve columns logo"><span class="white">Moo</span>gle</h1>
+	</div>
+	<div class="row">
+		<input id="q" class="eight columns offset-by-two" type="text" name="q" autocomplete="off" placeholder="Search">
+	</div>
+	<div class="row">
+		<button id="clear" class="button two columns offset-by-three">Clear</button>
+		<button id="search_button" class="button button-primary four columns" type="submit"> Moo!</button>
+	</div>
 	</div>
 	<br>
 	<div id="res">

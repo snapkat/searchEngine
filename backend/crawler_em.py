@@ -23,8 +23,6 @@ import urlparse
 from BeautifulSoup import *
 from collections import defaultdict
 import re
-import json
-from HTMLParser import HTMLParser
 
 import redis
 from pg_rank import page_rank
@@ -40,9 +38,7 @@ def attr(elem, attr):
 
 
 WORD_SEPARATORS = re.compile(r'\s|\n|\r|\t|[^a-zA-Z0-9\-_]')
-redis_host = ""
-with open('redis_host.json') as f:
-    redis_host = json.loads(f.read())['host']
+
 
 class crawler(object):
     """Represents 'Googlebot'. Populates a database by crawling and indexing
@@ -56,10 +52,11 @@ class crawler(object):
         """
 
         self._url_queue = []
-        self.r = redis.StrictRedis(host=redis_host, port=6379, db=0)
-        self.r_rank = redis.StrictRedis(host=redis_host, port=6379, db=1)
-        self.h = HTMLParser()
+        self.r = redis.StrictRedis(host="localhost", port=6379, db=0)
+        self.r_rank = redis.StrictRedis(host="localhost", port=6379, db=1)
 
+        self.r.flushall()
+        self.r_rank.flushall()
         '''
         self._id_to_url = {}
         self._id_to_word = {}
@@ -68,8 +65,10 @@ class crawler(object):
         self._doc_to_id = {}
         '''
 
-        # Directed Graph; list of from-to tuple pairs
+        #Directed Graph; list of from-to tuple pairs
         self._url_graph = []
+        self._vocabulary = []
+        self._document_index = []
 
         # functions to call when entering and exiting specific tags
         self._enter = defaultdict(lambda *a, **ka: self._visit_ignore)
@@ -143,20 +142,16 @@ class crawler(object):
         except IOError:
             pass
 
-    def get_inverted_index(self, cursor, count):
+    def get_inverted_index(self, cursor):
         """Returns inverted index mapping (from word id to document ids that
         contain the word)"""
-        inv_ind = {}
-        for k in self.r.scan_iter(match="word_id_to_doc_ids:*"):
-            w_id = int(k.split(":", 1)[1])
-            inv_ind[w_id] = self.r.smembers(k)
+        return self.r.scan(cursor=cursor, match="word_id_to_doc_ids:*")
 
-        return inv_ind
-
-    def get_resolved_inverted_index(self):
+    def get_resolved_inverted_index(self, cursor):
         """Returns inverted index mapping, with ids replaced with words and
         urls"""
         r_inv_index = {}
+        key_list = []
         for word_id in self.r.scan_iter(match="word_id_to_doc_ids:*"):
             doc_id_set = self.r.smembers(word_id)
             word_id = word_id.split(":")[1]
@@ -167,45 +162,55 @@ class crawler(object):
 
             r_inv_index[word] = set(doc_list)
         return r_inv_index
+        
 
     # TODO remove me in real version
     def _insert_document(self, url):
         """A function that pretends to insert a url into a document db table
         and then returns that newly inserted document's id."""
-        doc_id = self._next_doc_id
+        ret_id = self._next_doc_id
         self._next_doc_id += 1
-        self.r.hset("doc_to_id", url, doc_id)
-        self.r.hset("id_to_doc", doc_id, url)
-        return doc_id
+        return ret_id
 
+    # TODO remove me in real version
     def _insert_word(self, word):
         """A function that pretends to instert a word into the lexicon db table
         and then returns that newly inserted word's id."""
-        word_id = self._next_word_id
+        ret_id = self._next_word_id
         self._next_word_id += 1
-        self.r.hset("word_to_id", word, word_id)
-        self.r.hset("id_to_word", word_id, word)
-        return word_id
+        self.r.hset("word_to_id", word, ret_id)
+        self.r.hset("id_to_word", ret_id, word)
+        return ret_id
 
     def word_id(self, word):
         """Returns the word id of some specific word."""
-        word_id = self.r.hget("word_to_id", word)
-        if not word_id:
-            word_id = self._insert_word(word)
+        if self.r.hexists("word_to_id", word):
+            return self.r.hget("word_to_id", word)
+
         # TODO: 1) add the word to the lexicon, if that fails, then the
         #          word is in the lexicon
         #       2) query the lexicon for the id assigned to this word,
         #          store it in the word id cache, and return the id.
-        return word_id
+        return self._insert_word(word)
 
     def document_id(self, url):
         """Get the document id for some url."""
-        doc_id = self.r.hget("doc_to_id", url)
-        if not doc_id:
-            doc_id = self._insert_document(url)
+        if self.r.hexists("doc_to_id", url):
+            return self.r.hget("doc_to_id", url)
+
         # TODO: just like word id cache, but for documents. if the document
         #       doesn't exist in the db then only insert the url and leave
         #       the rest to their defaults.
+
+        doc_id = self._insert_document(url)
+        self.r.hset("doc_to_id", url, doc_id)
+        self.r.hset("id_to_doc", doc_id, url)
+
+        #Update and sort document index list
+        doc_index_entry = (doc_id, '', '')
+        self._document_index.append(doc_index_entry)
+
+        sorted(self._document_index, key = lambda x:x[0])
 
         return doc_id
 
@@ -230,7 +235,6 @@ class crawler(object):
     def _visit_title(self, elem):
         """Called when visiting the <title> tag."""
         title_text = self._text_of(elem).strip()
-        self.r.hset("doc_id_title", self._curr_doc_id, self.h.unescape(title_text))
         print "document title=" + repr(title_text)
 
         # TODO update document title for document id self._curr_doc_id
@@ -253,16 +257,18 @@ class crawler(object):
         self.add_link(self._curr_doc_id, self.document_id(dest_url))
 
         # TODO add title/alt/text to index for destination url
-
-    # def _build_graph(self, elem):
+    
+    #def _build_graph(self, elem):
         """Called when visiting <a> tags."""
-        # Builds directed graph
+        #Builds directed graph
         #dest_url = self._fix_url(self._curr_url, attr(elem, "href"))
 
-        # Add current edge to graph
+        #Add current edge to graph
         dest_url_id = int(self.document_id(dest_url))
         curr_edge = (int(self._curr_doc_id), dest_url_id)
         self._url_graph.append(curr_edge)
+
+
 
     def _add_words_to_document(self):
         # TODO: knowing self._curr_doc_id and the list of all words and their
@@ -271,7 +277,11 @@ class crawler(object):
 
         for word_id, _ in self._curr_words:
             self.r.sadd("word_id_to_doc_ids:%s" % word_id,
-                        self._curr_doc_id)
+                            self._curr_doc_id)
+            if self.r.hget("id_to_word",word_id) not in self._vocabulary:
+                #Adds new words to vocabulary
+                word = self.r.hget("id_to_word",word_id)
+                self._vocabulary.append(word)
 
         print "    num words=" + str(len(self._curr_words))
 
@@ -305,9 +315,11 @@ class crawler(object):
             return " ".join(text)
         else:
             return elem.string
-
-    # def _get_doc_info(self, elem):
+    
+    #def _get_doc_info(self, elem):
         """Gets the title and first 12 words of webpage"""
+
+
 
     def _index_document(self, soup):
         """Traverse the document in depth-first order and call functions when
@@ -358,10 +370,8 @@ class crawler(object):
 
     def crawl(self, depth=2, timeout=3):
         """Crawl the web!"""
-        self.r.flushall()
-        self.r_rank.flushall()
-
         seen = set()
+
         while len(self._url_queue):
 
             url, depth_ = self._url_queue.pop()
@@ -399,38 +409,49 @@ class crawler(object):
                 if socket:
                     socket.close()
 
-        # Gets the page rankings for each doc id
+
+        
+        #Gets the page rankings for each doc id
         doc_id_ranks = page_rank(self._url_graph)
 
         url_ranks = defaultdict()
 
-        # For documents without outgoing links, set page rank to 0
+        #For documents without outgoing links, set page rank to 0
         doc_id_to_url = self.r.hgetall("id_to_doc")
-
+        
         all_doc_ids = doc_id_to_url.keys()
         int_doc_ids = [int(i) for i in all_doc_ids]
 
-        # print type(doc_id_to_url[0])
-        # Set pages with no outgoing links to rank 0
+        
+        #print type(doc_id_to_url[0])
+        #Set pages with no outgoing links to rank 0
         for id in int_doc_ids:
             if id not in doc_id_ranks:
                 doc_id_ranks[id] = 0
 
-        # Url to rank mapping
+        #Url to rank mapping
         for doc_id, rank in doc_id_ranks.iteritems():
             curr_url = doc_id_to_url[str(doc_id)]
             url_ranks[curr_url] = rank
+        
+        #Save rankings to persistent storage
+        self.r_rank.hmset("doc_id_ranks",doc_id_ranks)
+        self.r_rank.hmset("url_ranks",url_ranks)
 
-        # Save rankings to persistent storage
-        self.r_rank.hmset("doc_id_ranks", doc_id_ranks)
-        self.r_rank.hmset("url_ranks", url_ranks)
+        #Get the resolved inverted index and save it
+        resolved_inv_index = self.get_resolved_inverted_index(cursor=0)
+        self.r_rank.hmset("r_inv_index",resolved_inv_index)
+        
+        #Save vocabulary and document index to persistent storage
+        for word in self._vocabulary:
+            self.r.sadd("lexicon", word)
 
-        # Get the resolved inverted index and save it
-        resolved_inv_index = self.get_resolved_inverted_index()
-        self.r_rank.hmset("resolved_inv_index", resolved_inv_index)
+        for doc_index in self._document_index:
+            self.r.sadd("document_index_list", doc_index)
+        
+
 
 
 if __name__ == "__main__":
     bot = crawler(None, "urls.txt")
     bot.crawl(depth=1)
-    print bot.get_resolved_inverted_index()

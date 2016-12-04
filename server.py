@@ -153,10 +153,12 @@ def get_resolved_urls(word, cursor=0, count=5):
     for doc_id in doc_id_set:
         url = r.hget("id_to_doc", doc_id)
         pg_rank = float(r_rank.hget("doc_id_ranks", doc_id))
-        doc_rank.append((pg_rank, url))
+        doc_rank.append((pg_rank, url, doc_id))
 
     return sorted(doc_rank, key=lambda tup: tup[0], reverse=True)
 
+def get_title_from_doc_ids(doc_id):
+    return r.hget("doc_id_title", doc_id)
 
 def query_results():
     query = bottle.request.query.q
@@ -196,6 +198,7 @@ def query_results():
 
     start = (page - 1) * 5
     page_results = hits_by_rank[start: min(start + 5, len(hits_by_rank))]
+    page_results = map(lambda x: (x[0],x[1],get_title_from_doc_ids(x[2])), page_results)
     # print "page_results", page_results
 
     return {"words": query_counter, "num_words": len(words), "query": query,
