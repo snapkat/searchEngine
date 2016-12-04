@@ -165,9 +165,23 @@ def get_title_from_doc_ids(doc_id):
 
 def query_results():
     query = bottle.request.query.q
+    headr = bottle.request.urlparts[3]
     # exclude = '!"#$%&()*+,./:;<=>?@[\]^_`{|}~'
     exclude = ""
     clean_query = ''.join(ch for ch in query if ch not in exclude)
+    
+    # check if a math function
+    if clean_query[:6] == "solve(":
+        print "math function"
+        temp = headr[8:]
+        try:
+            temp = temp.split(")",1)
+            math = eval(temp[0])
+            return {"words": "math func", "query": temp[0], "rslt": math}
+        except:
+            err = "error in equation: please use 'solve(+,-,*,/)' for math operations"
+            return {"words": "math func", "query": " ", "rslt": err}
+
     words = clean_query.lower().split()
 
     query_counter = Counter()
@@ -213,6 +227,8 @@ def ajax_query():
     d = query_results()
     if not d:
         return ""
+    elif d["words"] == "math func":
+        return bottle.template("math",d)
 
     d["words"] = d["words"].most_common()
     return bottle.template("res", d)
