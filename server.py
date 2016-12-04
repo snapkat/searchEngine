@@ -103,6 +103,8 @@ def redirect_page():
     users_service = build('oauth2', 'v2', http=http)
     user_document = users_service.userinfo().get().execute()
     user_email = user_document['name']#user_document['email']
+    for a in user_document:
+        print a
     # Get sessional user email
     sess['user_email'] = user_email
     sess.save()
