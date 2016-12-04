@@ -13,11 +13,11 @@
 <body>
 	<div id="oauth" class="row">
 	% if user:
-		<form method="get" action="/signout">
-		<span class="two columns"><strong>Signed in as:</strong> {{user}}</span><button class="two columns" type="submit"> Sign-out</button>
+		<form method="get" action="/signout" class="twelve columns">
+		<span>Hi <strong>{{user}}</strong>!</span><button type="submit" class="right"> Sign-out</button>
 		</form>	
 	% else:
-		<form method="get" action="/signin" class="two columns">
+		<form method="get" action="/signin" class="two columns right">
 		<button id="sign-in" type="submit"> Sign-in with Google</button>
 		</form>	
 	% end

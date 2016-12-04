@@ -59,11 +59,6 @@ a{
 	text-shadow: 1px 0 0 #000, 0 -1px 0 #000, 0 1px 0 #000, -1px 0 0 #000;
 }
 
-#oauth {
-	display: inline-block;
-	float: right;
-}
-
 #s_buttons {
 
 }
@@ -106,4 +101,13 @@ a{
 	background-size: 270px 200px;
 	background-position: 52% 59%;
 	background-blend-mode: screen;
+}
+
+.right {
+	display: inline-block;
+	float: right;
+}
+
+.result_box p{
+	margin-left: 20px;
 }

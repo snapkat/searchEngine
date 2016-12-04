@@ -6,7 +6,7 @@
 	% if rslt_lst:
 	% 	for url in rslt_lst:
 	<ul>
-		<li><a href="{{url[1]}}" target="_blank">{{url[2]}}</a>
+		<li class="result_box"><a href="{{url[1]}}" target="_blank">{{url[2]}}</a>
 			<p class="small">{{url[1]}}</p>
 		</li>
 	</ul>
