@@ -102,7 +102,10 @@ def redirect_page():
 
     users_service = build('oauth2', 'v2', http=http)
     user_document = users_service.userinfo().get().execute()
-    user_email = user_document['name']#user_document['email']
+    email = user_document['email']
+    name = user_document['given_name']
+    picture = user_document['picture']
+
     for a in user_document:
         print a
     # Get sessional user email
@@ -112,7 +115,7 @@ def redirect_page():
     if (sess.get('user_email', 0) not in word_dict):
         word_dict[sess.get('user_email', 0)] = Counter()
 
-    return bottle.template("search", user=user_email,
+    return bottle.template("search", user=name, pic= picture,
                            top_words=word_dict[sess.get('user_email', 0)].most_common(20))
 
 
