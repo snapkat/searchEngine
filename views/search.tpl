@@ -14,7 +14,7 @@
 	<div id="oauth" class="row">
 	% if user:
 		<form method="get" action="/signout">
-		<span>Signed in as: {{user}}</span><button type="submit"> Sign-out</button>
+		<span class="two columns"><strong>Signed in as:</strong> {{user}}</span><button class="two columns" type="submit"> Sign-out</button>
 		</form>	
 	% else:
 		<form method="get" action="/signin" class="two columns">

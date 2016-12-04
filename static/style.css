@@ -101,7 +101,9 @@ a{
 
 .logo {
 	background-image: url(http://moogle.ml/cow.jpeg);
+	background-image: linear-gradient(black 30%,grey 85%, black 100%), url(http://moogle.ml/cow.jpeg);
 	background-repeat: no-repeat;
-	background-position: 52% 45%;
-	background-blend-mode: lighten;
+	background-size: 270px 200px;
+	background-position: 52% 59%;
+	background-blend-mode: screen;
 }
