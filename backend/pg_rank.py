@@ -52,7 +52,6 @@ def page_rank(links, num_iterations=20, initial_pr=1.0):
                 tail = damping_factor * \
                     partial_PR(incoming_links[doc_id]).sum()
             page_rank[doc_id] = lead + tail
-
     return page_rank
 
 if __name__ == "__main__":

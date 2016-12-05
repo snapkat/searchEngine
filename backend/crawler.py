@@ -272,6 +272,9 @@ class crawler(object):
         for word_id, _ in self._curr_words:
             self.r.sadd("word_id_to_doc_ids:%s" % word_id,
                         self._curr_doc_id)
+            self.r.hincrby("word_id_to_doc_ids_count:%s" % word_id,
+                        self._curr_doc_id, 1)
+            self.r.hincrby("word_id_counter", word_id, 1)
 
         print "    num words=" + str(len(self._curr_words))
 
@@ -424,6 +427,8 @@ class crawler(object):
         # Save rankings to persistent storage
         self.r_rank.hmset("doc_id_ranks", doc_id_ranks)
         self.r_rank.hmset("url_ranks", url_ranks)
+        for d_id, rank in doc_id_ranks.iteritems():
+            self.r.zadd("doc_id_by_rank", rank, d_id)
 
         # Get the resolved inverted index and save it
         resolved_inv_index = self.get_resolved_inverted_index()

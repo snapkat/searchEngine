@@ -14,6 +14,10 @@ h1 {
 	/*text-shadow: 1px 0 0 #fff, 0 -1px 0 #fff, 0 1px 0 #fff, -1px 0 0 #fff;*/
 }
 
+h2,h3{
+	text-align:center;
+}
+
 body {
 	max-width: 780px;
 	margin: auto;
@@ -116,6 +120,7 @@ a{
 
 .result_box p{
 	margin-left: 20px;
+	overflow-wrap: break-word;
 }
 
 .user_pic {

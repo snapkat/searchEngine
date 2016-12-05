@@ -1,4 +1,5 @@
-from gevent import monkey; monkey.patch_all()
+from gevent import monkey
+monkey.patch_all()
 from collections import Counter
 from oauth2client.client import flow_from_clientsecrets
 from oauth2client.client import OAuth2WebServerFlow
@@ -40,8 +41,6 @@ r_rank = redis.StrictRedis(host=redis_host, port=6379, db=1)
 
 with open('client_secrets.json') as f:
     oauth_cred = json.loads(f.read())['web']
-
-
 
 
 @bottle.route('/<filename:path>', 'GET')
@@ -106,8 +105,6 @@ def redirect_page():
     name = user_document['given_name']
     picture = user_document['picture']
 
-    for a in user_document:
-        print a
     # Get sessional user email
     sess['user_email'] = user_email
     sess.save()
@@ -115,7 +112,7 @@ def redirect_page():
     if (sess.get('user_email', 0) not in word_dict):
         word_dict[sess.get('user_email', 0)] = Counter()
 
-    return bottle.template("search", user=name, pic= picture,
+    return bottle.template("search", user=name, pic=picture,
                            top_words=word_dict[sess.get('user_email', 0)].most_common(20))
 
 
@@ -147,34 +144,57 @@ def send_static(filename):
     return bottle.static_file(filename, root='./')
 
 
-def get_resolved_urls(word, cursor=0, count=5):
+def get_resolved_urls(word, page=1, count=5):
     """Returns a list of urls where the document contains the word."""
     w_id = r.hget("word_to_id", word)
+    doc_rank_c = 0
 
-    doc_id_set = r.smembers("word_id_to_doc_ids:%s" % w_id)
-    doc_rank = []
-    for doc_id in doc_id_set:
-        url = r.hget("id_to_doc", doc_id)
-        pg_rank = float(r_rank.hget("doc_id_ranks", doc_id))
-        doc_rank.append((pg_rank, url, doc_id))
+    # Get intersection of docs w/ words and word rank!
+    if not r.exists("word_to_ranked:%s" % w_id):
+        doc_rank_c = r.zinterstore(
+            "word_to_ranked:%s" % w_id, ["doc_id_by_rank", "word_id_to_doc_ids:%s" % w_id])
+    else:
+        doc_rank_c = r.zcard("word_to_ranked:%s" % w_id)
 
-    return sorted(doc_rank, key=lambda tup: tup[0], reverse=True)
+    # Pull only what we need for the page.
+    doc_rank = r.zrevrange("word_to_ranked:%s" % w_id, (page - 1) *
+                           5, min(doc_rank_c, page * 5 - 1), withscores=True)
+
+    # Pull urls for display.
+    doc_rank = [(score, r.hget("id_to_doc", d_id), d_id)
+                for d_id, score in doc_rank]
+    return doc_rank, doc_rank_c
+
 
 def get_title_from_doc_ids(doc_id):
     return r.hget("doc_id_title", doc_id)
 
+
 def query_results():
     query = bottle.request.query.q
+    headr = bottle.request.urlparts[3]
+
     # exclude = '!"#$%&()*+,./:;<=>?@[\]^_`{|}~'
     exclude = ""
     clean_query = ''.join(ch for ch in query if ch not in exclude)
+    # check if a math function
+    if clean_query[:6] == "solve(":
+        print "math function"
+        temp = headr[8:]
+        try:
+            temp = temp.split(")", 1)
+            math = eval(temp[0])
+            return {"words": "math func", "query": temp[0], "rslt": math}
+        except:
+            err = "error in equation: please use 'solve(+,-,*,/)' for math operations"
+            return {"words": "math func", "query": " ", "rslt": err}
+
     words = clean_query.lower().split()
 
     query_counter = Counter()
     # Log query word counts
     for word in words:
         query_counter[word] += 1
-
     # Get search results
     if not words:
         return ""
@@ -187,12 +207,12 @@ def query_results():
         except:
             return "Bad Page!"
 
-    hits_by_rank = get_resolved_urls(words[0])
+    hits_by_rank, n_hits = get_resolved_urls(words[0], page=page)
     # print "#hits", len(hits_by_rank)
 
     # Paging
-    num_pages = len(hits_by_rank) // 5
-    if len(hits_by_rank) % 5:
+    num_pages = n_hits // 5
+    if n_hits % 5:
         num_pages += 1
     # print "num_pages", num_pages, "page", page
 
@@ -200,8 +220,9 @@ def query_results():
         page = num_pages
 
     start = (page - 1) * 5
-    page_results = hits_by_rank[start: min(start + 5, len(hits_by_rank))]
-    page_results = map(lambda x: (x[0],x[1],get_title_from_doc_ids(x[2])), page_results)
+    # page_results = hits_by_rank[start: min(start + 5, n_hits)]
+    page_results = map(lambda x: (
+        x[0], x[1], get_title_from_doc_ids(x[2])), hits_by_rank)
     # print "page_results", page_results
 
     return {"words": query_counter, "num_words": len(words), "query": query,
@@ -213,6 +234,8 @@ def ajax_query():
     d = query_results()
     if not d:
         return ""
+    elif d["words"] == "math func":
+        return bottle.template("math", d)
 
     d["words"] = d["words"].most_common()
     return bottle.template("res", d)

@@ -1,7 +1,7 @@
 % if user:
 <div>
 <table id="results">
-<h2>Top 20 Words</h2>
+<h3>Top 20 Words</h3>
 % 	for word, occurences in top_words:
 <tr>
  	<td>{{word}}</td>
