@@ -144,11 +144,32 @@ def send_static(filename):
     return bottle.static_file(filename, root='./')
 
 
-def get_resolved_urls(word, page=1, count=5):
+def get_resolved_urls(words, page=1, count=5):
     """Returns a list of urls where the document contains the word."""
-    w_id = r.hget("word_to_id", word)
     doc_rank_c = 0
+    w_ids = [r.hget("word_to_id", word) for word in words]
+    for w_id in w_ids:
+        build_word_rank(w_id)
 
+    doc_rank_c = r.sinterstore(
+        'query_results', ["word_id_to_doc_ids:%s" % w_id for w_id in w_ids])
+    doc_rank_c = r.zinterstore(
+        'query_page', ["doc_id_by_rank", 'query_results'])
+
+
+    # Pull only what we need for the page.
+    doc_rank = r.zrevrange('query_page', (page - 1) *
+                           count, min(doc_rank_c, page * count - 1), withscores=True)
+
+    # Pull urls for display.
+    doc_rank = [(score, r.hget("id_to_doc", d_id), d_id)
+                for d_id, score in doc_rank]
+    return doc_rank, doc_rank_c
+
+
+def build_word_rank(word, page=1, count=5):
+    doc_rank_c = 0
+    w_id = r.hget("word_to_id", word)
     # Get intersection of docs w/ words and word rank!
     if not r.exists("word_to_ranked:%s" % w_id):
         doc_rank_c = r.zinterstore(
@@ -156,9 +177,8 @@ def get_resolved_urls(word, page=1, count=5):
     else:
         doc_rank_c = r.zcard("word_to_ranked:%s" % w_id)
 
-    # Pull only what we need for the page.
     doc_rank = r.zrevrange("word_to_ranked:%s" % w_id, (page - 1) *
-                           5, min(doc_rank_c, page * 5 - 1), withscores=True)
+                           count, min(doc_rank_c, page * count - 1), withscores=True)
 
     # Pull urls for display.
     doc_rank = [(score, r.hget("id_to_doc", d_id), d_id)
@@ -207,7 +227,10 @@ def query_results():
         except:
             return "Bad Page!"
 
-    hits_by_rank, n_hits = get_resolved_urls(words[0], page=page)
+    if len(words)==1:
+        hits_by_rank, n_hits = build_word_rank(words[0], page=page)
+    elif len(words)>1:
+        hits_by_rank, n_hits = get_resolved_urls(words, page=page)
     # print "#hits", len(hits_by_rank)
 
     # Paging
